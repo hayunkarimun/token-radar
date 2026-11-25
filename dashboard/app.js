@@ -12,7 +12,7 @@ function ageOf(listed) {
   const a = Date.parse(R.as_of + 'T00:00:00Z'), b = Date.parse(listed + 'T00:00:00Z');
   return Number.isFinite(a) && Number.isFinite(b) ? Math.max(0, Math.floor((a - b) / DAY)) : null;
 }
-/* The model, exactly as lib/model.ts states it: log-damped growth, humped launch window, breadth. */
+/* The model, exactly as lib/model.ts states it: log-damped growth, humped launch window, breadth, TVL confidence. */
 function implied(r, m) {
   const g0 = r.change_7d === null || r.change_7d === undefined ? 0 : r.change_7d;
   const g = Math.min(m.growth_cap, Math.max(m.growth_floor, g0));
@@ -22,7 +22,8 @@ function implied(r, m) {
   const a = age === null ? m.unknown_age_days : age;
   const windowMult = m.window_floor + (1 - m.window_floor) * Math.exp(-(((a - m.window_peak_days) / m.window_width_days) ** 2));
   const breadthMult = 1 + m.breadth_weight * Math.min(Math.max(r.chains.length - 1, 0), m.breadth_cap);
-  return { implied: Math.max(1, Math.round(r.tvl_usd * m.base_multiple * growthMult * windowMult * breadthMult)), growthMult, windowMult, breadthMult, age };
+  const confidenceMult = m.confidence_floor + (1 - m.confidence_floor) * Math.min(1, r.tvl_usd / m.confidence_full_tvl_usd);
+  return { implied: Math.max(1, Math.round(r.tvl_usd * m.base_multiple * growthMult * windowMult * breadthMult * confidenceMult)), growthMult, windowMult, breadthMult, confidenceMult, age };
 }
 function pill(sig) {
   const cls = sig === 'Heating up' ? 'hot' : sig === 'Cooling' ? 'cold' : sig === 'Fresh' ? 'new' : 'ok';
@@ -47,9 +48,11 @@ const chains = [...new Set(R.rows.flatMap((r) => r.chains))].sort();
 $('chain').innerHTML += chains.map((c) => '<option>' + esc(c) + '</option>').join('');
 $('formula').textContent = 'implied = TVL × ' + R.model.base_multiple + ' × (1 + ' + R.model.growth_weight +
   ' × log-damped 7d momentum) × launch-window hump (peak ' + R.model.window_peak_days +
-  'd, floor ' + R.model.window_floor + ') × (1 + ' + R.model.breadth_weight + ' × extra chains)\n' +
+  'd, floor ' + R.model.window_floor + ') × (1 + ' + R.model.breadth_weight + ' × extra chains) × TVL confidence (' +
+  R.model.confidence_floor + ' at the floor, full at $' + (R.model.confidence_full_tvl_usd / 1e6) + 'M)\n' +
   'A token that does not exist yet is worth a slice of the value already parked, pulled toward launches ' +
-  'in their second year and toward protocols live on more chains — never a hardcoded list of names.';
+  'in their second year and toward protocols live on more chains — and discounted where the TVL itself ' +
+  'is thin enough for one whale to move it — never a hardcoded list of names.';
 $('source').textContent = 'Data: ' + R.source + '. ' + R.excluded.versioned + ' versioned pools, ' +
   R.excluded.wrapped + ' wrapped / staked / bridged products and ' + R.excluded.exchange +
   ' exchange products were left off the board with their reasons counted above.';
@@ -124,6 +127,7 @@ function openDetail(slug) {
     '<tr><td>Growth · log-damped momentum</td><td>× ' + f.growthMult.toFixed(3) + '</td></tr>' +
     '<tr><td>Launch window · peak ' + R.model.window_peak_days + ' days</td><td>× ' + f.windowMult.toFixed(3) + '</td></tr>' +
     '<tr><td>Breadth · ' + r.chains.length + ' chain' + (r.chains.length === 1 ? '' : 's') + '</td><td>× ' + f.breadthMult.toFixed(3) + '</td></tr>' +
+    '<tr><td>Confidence · TVL ' + money(r.tvl_usd) + '</td><td>× ' + f.confidenceMult.toFixed(3) + '</td></tr>' +
     '<tr><td><b>Implied value</b></td><td><b>' + moneyFull(r.implied_value_usd) + '</b></td></tr></table>' +
     '<p>' + pill(r.signal) + ' ' + r.flags.map((x) => '<span class="flag">' + esc(x) + '</span>').join('') + '</p>' +
     '<h3>Farm plan · 7 steps</h3><ol class="steps">' + farmSteps(r).map((s) =>
@@ -175,7 +179,7 @@ $('resetModel').addEventListener('click', () => {
   $('sBase').value = R.model.base_multiple; $('sGrowth').value = R.model.growth_weight;
   $('sPeak').value = R.model.window_peak_days; $('sBreadth').value = R.model.breadth_weight;
   syncSliders();
-  $('sandboxNote').textContent = 'Reset to sonar-1 defaults. Re-rank to apply.';
+  $('sandboxNote').textContent = 'Reset to sonar-2 defaults. Re-rank to apply.';
 });
 
 /* ---- deep links for screenshots: #detail=<slug>, #tab=live|model, #cat=<category>, #q=<text> ---- */

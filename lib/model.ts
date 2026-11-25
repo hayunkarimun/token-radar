@@ -24,8 +24,13 @@
 //              Unknown age counts as 365 days.
 //   breadth  = 1 + BREADTH_WEIGHT x min(chains - 1, 8): a protocol live on more
 //              chains has more surface for a token to land on.
+//   confidence = CONFIDENCE_FLOOR + (1 - CONFIDENCE_FLOOR) x min(1, tvl /
+//              CONFIDENCE_FULL_TVL): TVL near the $50M floor is noisy — one
+//              whale's deposit or withdrawal moves it sharply — so a small
+//              protocol's implied value is discounted up to 15%, reaching full
+//              confidence only at $500M of TVL. Large protocols are untouched.
 //
-//   implied  = max(1, round(base x growthMult x windowMult x breadthMult))
+//   implied  = max(1, round(base x growthMult x windowMult x breadthMult x confidenceMult))
 //
 // Every factor is stated in the dashboard and changeable in its sandbox, which
 // re-ranks the board live from the same numbers.
@@ -66,6 +71,8 @@ export interface ModelConstants {
   unknown_age_days: number;
   breadth_weight: number;
   breadth_cap: number;
+  confidence_floor: number;
+  confidence_full_tvl_usd: number;
 }
 
 export const MODEL: ModelConstants = {
@@ -80,10 +87,12 @@ export const MODEL: ModelConstants = {
   unknown_age_days: 365,
   breadth_weight: 0.04,
   breadth_cap: 8,
+  confidence_floor: 0.85,
+  confidence_full_tvl_usd: 500_000_000,
 };
 
 /** The model's version label: the dashboard names it. */
-export const MODEL_VERSION = 'sonar-1';
+export const MODEL_VERSION = 'sonar-2';
 
 /** How many live-token protocols the Live token view carries, by market cap. */
 export const LIVE_ROWS = 20;
@@ -116,6 +125,7 @@ export interface BoardRow {
     growth_pct: number;
     growth_multiplier: number;
     maturity_multiplier: number;
+    confidence_multiplier: number;
     age_days: number | null;
   };
   farm_steps: string[];
@@ -197,13 +207,14 @@ export function ageDays(asOf: string, listedAt: string | null): number | null {
 /**
  * The four factors and the implied value one protocol gets under `model`.
  * Growth is log-damped so one wild week cannot buy the board; the window is a
- * hump peaking at two years; breadth rewards multi-chain presence.
+ * hump peaking at two years; breadth rewards multi-chain presence; confidence
+ * discounts small TVL, which one whale can move, up to 15% near the floor.
  */
 export function impliedValue(
   protocol: SnapshotProtocol,
   asOf: string,
   model: ModelConstants,
-): { implied: number; growthPct: number; growthMult: number; windowMult: number; breadthMult: number; age: number | null } {
+): { implied: number; growthPct: number; growthMult: number; windowMult: number; breadthMult: number; confidenceMult: number; age: number | null } {
   const age = ageDays(asOf, protocol.listed_at);
   const rawGrowth = finite(protocol.change_7d, 0);
   const growthPct = Math.min(model.growth_cap, Math.max(model.growth_floor, rawGrowth));
@@ -217,9 +228,12 @@ export function impliedValue(
     model.window_floor + (1 - model.window_floor) * Math.exp(-(((ageForModel - peak) / width) ** 2));
   const extraChains = Math.min(Math.max(protocol.chains.length - 1, 0), model.breadth_cap);
   const breadthMult = 1 + model.breadth_weight * extraChains;
+  const confidenceMult =
+    model.confidence_floor +
+    (1 - model.confidence_floor) * Math.min(1, protocol.tvl_usd / model.confidence_full_tvl_usd);
   const base = protocol.tvl_usd * model.base_multiple;
-  const implied = Math.max(1, Math.round(base * growthMult * windowMult * breadthMult));
-  return { implied, growthPct, growthMult, windowMult, breadthMult, age };
+  const implied = Math.max(1, Math.round(base * growthMult * windowMult * breadthMult * confidenceMult));
+  return { implied, growthPct, growthMult, windowMult, breadthMult, confidenceMult, age };
 }
 
 /** DefiLlama's version-marker rule: a name ending in a release is a pool of another protocol. */
@@ -305,8 +319,8 @@ export function buildBoard(snapshot: Snapshot, model: ModelConstants = MODEL): B
   }
 
   const scored = [...chosen.values()].map((p) => {
-    const { implied, growthPct, growthMult, windowMult, breadthMult, age } = impliedValue(p, snapshot.as_of, model);
-    return { p, implied, growthPct, growthMult, windowMult, breadthMult, age };
+    const { implied, growthPct, growthMult, windowMult, breadthMult, confidenceMult, age } = impliedValue(p, snapshot.as_of, model);
+    return { p, implied, growthPct, growthMult, windowMult, breadthMult, confidenceMult, age };
   });
   scored.sort((a, b) => b.implied - a.implied || (a.p.slug < b.p.slug ? -1 : a.p.slug > b.p.slug ? 1 : 0));
   return scored.map((s, i) => ({
@@ -329,6 +343,7 @@ export function buildBoard(snapshot: Snapshot, model: ModelConstants = MODEL): B
       growth_pct: s.growthPct,
       growth_multiplier: round4(s.growthMult),
       maturity_multiplier: round4(s.windowMult),
+      confidence_multiplier: round4(s.confidenceMult),
       age_days: s.age,
     },
     farm_steps: farmSteps(s.p, s.age).map(stepText),

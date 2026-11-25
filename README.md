@@ -11,10 +11,10 @@ pre-token protocol the brief's watchlist rule keeps — all 40 watchlist slugs p
 every other rankable protocol below the floor, 198 rows in all — by an implied
 value derived only from the snapshot's own figures. No hardcoded list of names.
 
-## The model (sonar-1)
+## The model (sonar-2)
 
 ```
-implied = TVL × 0.18 × log-damped 7-day momentum × launch-window hump × breadth
+implied = TVL × 0.18 × log-damped 7-day momentum × launch-window hump × breadth × TVL confidence
 ```
 
 - **Base** — TVL × 0.18: a launch is worth a slice of the value already parked.
@@ -23,8 +23,11 @@ implied = TVL × 0.18 × log-damped 7-day momentum × launch-window hump × brea
 - **Launch window** — a hump peaking at two years: too young is unproven, five
   years with no token has probably decided not to launch.
 - **Breadth** — live on more chains, more surface for a token to land on.
+- **Confidence** — TVL near the $50M floor is noisy (one whale can move it), so
+  implied value is discounted up to 15% there, reaching full confidence only at
+  $500M of TVL. Large protocols are untouched.
 
-Rank 1 in this snapshot: Steakhouse Financial, $558.4M implied; $3.69B total.
+Rank 1 in this snapshot: Steakhouse Financial, $558.4M implied; $3.54B total.
 
 ## The dashboard
 
