@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launch Sonar — pre-token protocol radar</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="pulse" aria-hidden="true"><span></span></div>
+    <div>
+      <h1>Launch Sonar</h1>
+      <p class="sub">Which pre-token protocol is worth farming next — and what to do about it.</p>
+    </div>
+  </div>
+  <div class="meta">
+    <div><span class="k">Snapshot</span><span id="asOf" class="v">—</span></div>
+    <div><span class="k">Model</span><span class="v">sonar-1</span></div>
+    <div><span class="k">Board</span><span id="statBoard" class="v">—</span></div>
+    <div><span class="k">Total implied</span><span id="statTotal" class="v">—</span></div>
+  </div>
+</header>
+
+<section class="movers" id="movers" aria-label="Fastest movers"></section>
+
+<nav class="tabs" role="tablist">
+  <button id="tabBoard" class="tab on" data-tab="board" role="tab">Board</button>
+  <button id="tabLive" class="tab" data-tab="live" role="tab">Live tokens</button>
+  <button id="tabModel" class="tab" data-tab="model" role="tab">Model sandbox</button>
+</nav>
+
+<section id="viewBoard" class="view on">
+  <div class="filters">
+    <input id="q" type="search" placeholder="Search a protocol…" aria-label="Search protocols">
+    <select id="cat" aria-label="Category"><option value="">All categories</option></select>
+    <select id="chain" aria-label="Chain"><option value="">All chains</option></select>
+    <select id="sig" aria-label="Signal">
+      <option value="">All signals</option>
+      <option>Heating up</option><option>Steady</option><option>Cooling</option><option>Fresh</option>
+    </select>
+    <select id="sort" aria-label="Sort by">
+      <option value="implied">Sort: implied value</option>
+      <option value="tvl">Sort: TVL</option>
+      <option value="growth">Sort: 7d growth</option>
+      <option value="age">Sort: age</option>
+    </select>
+  </div>
+  <p class="count" id="count"></p>
+  <div class="tablewrap">
+  <table id="board">
+    <thead><tr>
+      <th>#</th><th>Protocol</th><th>Category</th><th>Chains</th>
+      <th class="num">TVL</th><th class="num">7d</th><th class="num">Age</th>
+      <th class="num">Implied value</th><th>Signal</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  </div>
+  <p class="note" id="excluded"></p>
+</section>
+
+<section id="viewLive" class="view">
+  <p class="lede">These tokens already trade, so the market — not the model — sets their value. They are kept apart from the board on purpose: a launch radar should never mix what exists with what is still to come.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr>
+      <th>Protocol</th><th>Category</th><th class="num">TVL</th>
+      <th class="num">Market cap</th><th class="num">TVL / mcap</th><th class="num">7d</th>
+    </tr></thead>
+    <tbody id="liveRows"></tbody>
+  </table>
+  </div>
+</section>
+
+<section id="viewModel" class="view">
+  <p class="lede">The whole model, in the open. Move a slider and re-rank the board from the same snapshot figures — nothing here is a hardcoded list of names.</p>
+  <div class="formula" id="formula"></div>
+  <div class="sliders">
+    <label>Base multiple <output id="oBase"></output><input id="sBase" type="range" min="0.05" max="0.5" step="0.01" value="0.18"></label>
+    <label>Growth weight <output id="oGrowth"></output><input id="sGrowth" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+    <label>Launch-window peak (days) <output id="oPeak"></output><input id="sPeak" type="range" min="365" max="1460" step="5" value="730"></label>
+    <label>Breadth weight <output id="oBreadth"></output><input id="sBreadth" type="range" min="0" max="0.1" step="0.005" value="0.04"></label>
+  </div>
+  <button id="rerank" class="btn">Re-rank the board with these settings</button>
+  <button id="resetModel" class="btn ghost">Reset to sonar-1</button>
+  <p class="count" id="sandboxNote"></p>
+</section>
+
+<aside id="drawer" class="drawer" aria-label="Protocol detail" hidden>
+  <button id="closeDrawer" class="x" aria-label="Close detail">×</button>
+  <div id="detail"></div>
+</aside>
+
+<footer>
+  <p><strong>How to read this.</strong> Implied value = TVL × 0.18 × log-damped 7-day momentum × a launch-window curve peaking at two years × a multi-chain breadth factor. It is a ranking aid, not a price: a token may never launch, and a launch may be worth far less. Farm with money you can lose, from the protocol's own pages only.</p>
+  <p id="source" class="src"></p>
+</footer>
+<script src="../data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
